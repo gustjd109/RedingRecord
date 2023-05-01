@@ -114,7 +114,6 @@
 
 ### 1.4.1 시스템의 하드웨어 조직
 - hello 프로그램을 실행할 때 무슨 일이 일어나는지 설명하기 위해서는 전형적인 시스템에서의 하드웨어 조직을 이해할 필요가 있음
-<img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FcCGHQP%2Fbtrb77adPqE%2FQBTV1iVDCCjq1jcQkKGAs1%2Fimg.png">
 - 버스(Buses)
     - 시스템 내를 관통하는 전기적 배선군
     - 컴포넌트들 간에 바이트 정보들을 전송
@@ -158,6 +157,8 @@
         - 두 레지스터의 값을 ALU로 복사하고 두 개의 워드로 수식연산을 수행한 뒤, 결과를 덮어쓰기 방식으로 레지스터에 저장
     - 점프(Jump)
         - 인스트럭션 자신으로부터 한 개의 워드를 추출하고, 이것을 PC에 덮어쓰기 방식으로 복사
+
+<img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FcCGHQP%2Fbtrb77adPqE%2FQBTV1iVDCCjq1jcQkKGAs1%2Fimg.png">
 
 ### 1.4.2 hello 프로그램의 실행
 - 쉘 프로그램은 자신의 인스트럭션을 실행하면서 사용자가 명령을 입력하기를 기다림
