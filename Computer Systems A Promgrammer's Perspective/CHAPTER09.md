@@ -11,7 +11,7 @@
     - 할당된 블록은 응용하기 위해 명시적으로 보존됨
     - 가용한(free) 블록은 할당을 위해 사용할 수 있고, 응용이 명시적으로 할당할 때까지 가용한 상태로 남음
     - 할당된 블록은 응용에 의해 명시적으로 또는 메모리 할당기에 의해 묵시적으로 반환될 때까지 할당된 채로 남음  
-<img src="https://velog.velcdn.com/images/supssson/post/00548582-4f9a-4b51-8549-ed538cff5d70/image.jpeg" height="300" width="500">
+    <img src="https://velog.velcdn.com/images/supssson/post/00548582-4f9a-4b51-8549-ed538cff5d70/image.jpeg" height="300" width="500">  
     - 할당기 유형
         - 두 개의 유형이 있으며 모두 응용이 명시적으로 블록을 할당하도록 요구하지만, 반환할 때의 차이점이 있음
         - 명시적인 할당기(Explicit allocators)
@@ -68,7 +68,7 @@
     - (d)는 p2에 할당된 6워드 블록을 반환해준 상태
         - free 함수를 호출하여 블록을 반환하더라도 포인터 p2는 여전히 malloc된 블록을 가리킴
         - p2가 새로운 malloc 콜에 의해 다시 초기화될 때까지 p2를 사용하지 않음  
-<img src="https://velog.velcdn.com/images/supssson/post/b54954a3-cf0c-42c1-9143-c29fa8836608/image.jpeg" height="150" width="500">
+        <img src="https://velog.velcdn.com/images/supssson/post/b54954a3-cf0c-42c1-9143-c29fa8836608/image.jpeg" height="150" width="500">
 
 ## 9.9.2 왜 동적 메모리 할당인가?
 - 동적 메모리 할당을 사용하는 이유는 프로그램을 실제 실행시키기 전에는 자료 구조의 크기를 알 수 잆는 경우들이 존재하기 때문임
@@ -136,7 +136,7 @@
         - 한 시스템에서 모든 프로세스에 의해 할당된 가상메모리의 양은 디스크 내의 스왑 공간의 양에 의해 제한
         - 최고 이용도(peak utilization)
             - 할당기가 얼마나 힙을 효울적으로 사용하는지를 규정하는 방법 중에서 가장 유용한 단위  
-<img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FRvzhk%2FbtqTF2K38h0%2FUOGkXByKJ2eOwd0dexNn60%2Fimg.png">
+            <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FRvzhk%2FbtqTF2K38h0%2FUOGkXByKJ2eOwd0dexNn60%2Fimg.png">  
             - 간단하게 말하면, 이용도U = ( 실제로 사용하는 힙의 크기 = maxPi ) / ( 할당된 힙의 크기 = Hk )
             - 즉, U = 1이면 낭비되는 것 없이 힙을 온전히 그대로 사용하고 있고, U = 0 이라면 실제로 사용되는 힙이 없음에도 불구하고 힙이 할당되어 있는 것
 
@@ -147,7 +147,7 @@
     - 내부 단편화
         - 할당된 블록이 요구하는 데이터보다 더 크게 할당되어 사용하는 메모리 공간을 낭비할 때 발생
         - 예를 들어, 아래 그림을 보자  
-<img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2Fbfy5Je%2FbtqTIpMKXVU%2FNGzbVdi7cNZbyfjxxdrHW0%2Fimg.png">
+        <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2Fbfy5Je%2FbtqTIpMKXVU%2FNGzbVdi7cNZbyfjxxdrHW0%2Fimg.png">  
             - 정수는 4바이트이므로 5 * sizeof(int)는 5칸을 차지 함
             - 하지만, 64바이트에서는 8바이트씩(2칸씩)만 배치할 수 있으므로 2의 배수로 할당해서 6칸을 차지 함
             - 따라서, 4바이트가 낭비되고 있는 상태
@@ -156,7 +156,7 @@
     - 외부 단편화
         - 총 메모리 공간은 충분하지만, 요청을 처리할 수 있는 단일한 가용 블록이 없을 때 발생
         - 예를 들어, 아래 그림을 보자  
-<img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FSQYyv%2FbtqTF3QMGDL%2FcMgVLmauXSFSISfdR3UZek%2Fimg.png">
+        <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FSQYyv%2FbtqTF3QMGDL%2FcMgVLmauXSFSISfdR3UZek%2Fimg.png">  
             - 현재 여유 메모리는 6칸(24바이트)이나, 4칸과 2칸으로 나누어져 있으므로 24바이트 블록을 할당할 수 없음
         - 할당기의 요구사항 중 "할당된 블록을 수정하지 않기"로 인해 할당된 블록을 수정하거나 이동이 불가능하여 정렬할 수 없으므로 대응이 어려움
         - 내부 단편화보다 측정하기 더 어렵고 예측하기 불가능하기 때문에 할당기들은 대개 많은 수의 더 작은 가용 블록들보다는 더 적은 수의 큰 블록들을 유지하려는 방법을 채택
