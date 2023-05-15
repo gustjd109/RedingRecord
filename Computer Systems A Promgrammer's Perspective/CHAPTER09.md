@@ -300,5 +300,99 @@
     - 이전 블록과 다음 블록 모두 가용상태다.
         - 세 블록 모두 하나의 가용 블록으로 통합
 
+## 9.9.12 종합 설계 : 간단한 할당기의 구현
+- 경계 태그 연결을 사용하는 묵시적 가용 리스트에 기초한 간단한 할당기의 구현을 따라가 보기로 한다.
+- 할당기 기본 설계
+    - 우리의 할당기는 아래 코드에서 보여주는 것과 같은 memlib.c 패키지에서 제공되는 메모리 시스템의 모델을 사용한다.
+        ```C
+        /* Private global variables */
+        static char *mem_heap;  /* Points to first byte of heap */
+        static char *mem_brk; /* Points to last byte of heap plus 1 */
+        static char *mem_max_addr; /* Max legal heap addr plus 1 */
+        
+        /* *mem_init - Initilaize the memory system model */
+        
+        void mem_init(void)
+        {
+            mem_heap = (char *)Malloc(MAX_HEAP);
+            mem_brk = (char *)mem_heap;
+            mem_max_addr = (char *)(mem_heap + MAX_HEAP);
+        }
+        
+        /*
+        * mem_sbrk - Simple model of the sbrk function. Extends the heap
+        * by incr bytes and returns the start address of the new area.
+        * In this model, the heap cannot be shrunk
+        */
+        
+        void *mem_sbrk(int incr)
+        {
+            char *old_brk = mem_brk;
+            
+            if ( (incr < 0) || ((mem_brk + incr) > mem_max_addr)){
+                errno = ENOMEM;
+                fprintf(stderr, "ERROR: mem_sbrk failed. Ran out of memory...\n")
+                return (void *) -1;
+            }
+            mem_brk += incr;
+            return (void *)old_brk;
+        }
+        ```
+        - 이 모델의 목적은 우리가 설계한 할당기가 기존의 시스템 수준의 malloc 패키지와 상관없이 돌 수 있도록 하기 위한 것이다.
+        - 전역변수
+            - mem_heap : 힙의 처음을 가리키는 포인터다.
+            - mem_brk : 배당 받은 힙 공간의 마지막 자리를 가리킨다. 
+            - mem_max_addr : MAX_HEAP의 끝 자리를 나타내며, 이 이상으로는 할당할 수 없다. 
+        - 함수
+            - init()
+                - 할당기를 초기화하고, 성공하면 0을, 아니면 -1을 반환한다.
+            - mem_sbrk()
+                - incr(할당 요청이 들어왔을 때, 요청된 용량)가 들어왔을 때, 이것이 MAX_HEAP을 초과하지 않으면 추가로 mem_brk를 할당 요청 용량만큼 옮긴다.
+                - 용량의 크기가 음수이거나, MAX_HEAP을 초과하면 error 메세지를 반환한다.
+- 할당기의 기본 블록 구성
+    - 최소 블록 크기는 16바이트이고, 가용 리스트는 묵시적 가용 리스트로 구성되며, 아래 그림과 같이 변하지 않는 형태를 갖는다.  
+    <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2Fp4Hoa%2Fbtre4Odp0ce%2FyoRVbdKPA3hY4pFcBdFMKK%2Fimg.png"></img>
+    - 첫 번째 워드
+        - 더블 워드 경계로 정렬된 미사용 패딩 워드이다.
+    - 프롤로그(prolog) 블록
+        - 패딩 다음에는 특별한 프롤로그(prolog) 블록이 오며, 이것을 header와 footer로만 구성된 8바이트 할당 블록이다.
+        - 프롤로그 블록은 초기화 과정에서 생성되며 절대 반환하지 않는다.
+    - 일반 블록
+        - 프롤로그 다음에는 malloc 또는 free를 호출해서 생성된 0 또는 1개 이상의 일반 블록들이 온다.
+    - 에필로그(epilogue) 블록
+        - 힙은 항상 특별한 에필로그(epilogue) 블록으로 끝나며, 헤더만으로 구성된 크기가 0으로 할당된 블록이다.
+    - 프롤로그와 에필로그 블록들은 연결과정 동안에 가자앚리 조건을 없애주기 위한 속임수다.
+    - 할당기는 한 개의 정적(static) 전역변수를 사용하며, 항상 프롤로그 블록을 가리킨다.
+- 가용 리스트 조작을 위한 기본 상수와 매크로
+    -  아래의 코드는 할당기 코드 전체에서 가용 리스트 조작을 위한 기본 상수 및 매크로 정의이다.
+        ```C
+        /* Basic constants and macros */
+        #define WSIZE 4 /* Word and header/footer size (bytes) */
+        #define DSIZE 8 /* Double word size (bytes) */
+        #define CHUNKSIZE (1<<12) /* Extend heap by this amount (bytes) */
+
+        #define MAX(x, y) ((x) > (y)? (x) : (y))
+
+        /* Pack a size and allocated bit into a word */
+        #define PACK(size, alloc) ((size) | (alloc))
+
+        /* Read and write a word at address p */
+        #define GET(p) (*(unsigned int *)(p))
+        #define PUT(p, val) (*(unsigned int *)(p) = (val))
+
+        /* Read the size and allocated fields from address p */
+        #define GET_SIZE(p) (GET(p) & ~0x7)
+        #define GET_ALLOC(p) (GET(p) & 0x1)
+
+        /* Given block ptr bp, compute address of its header and footer */
+        #define HDRP(bp) ((char *)(bp) - WSIZE)
+        #define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)
+
+        /* Given block ptr bp, compute address of next and previous blocks */
+        #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
+        #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
+        ```
+        - 
+
 ## 참조
 - https://firecatlibrary.tistory.com/34
