@@ -36,6 +36,12 @@
     - 블록 내에 포함될 수 있는 어떤 종류의 데이터 객체에 대해서 적절히 정렬된 최소 size 바이트를 갖는 메모리 블록의 포인터를 반환한다.
         - 할당받는 메모리의 크기는 32비트에서는 주소가 8의 배수이며, 64비트에서는 16배수이다.
             - 최소 단위의 메모리 크기가 32비트에서는 8바이트, 64비트에서는 16바이트라는 것을 의미한다.
+                - 그러면 왜 GNU의 malloc이 32비트에서 더블 워드 정렬, 64비트에서 쿼드 워드 정렬을 하는 것일까?
+                    - OS가 데이터를 주고 받는 단위(몇 워드로 주고 받는가)와 관련
+                    - 자료형과 관련
+                        - 8바이트인 자료형을 모두 커버하기 위해 32비트 사용해야 한다.
+                        - long double은 컴파일러마다 크기가 다르다.
+                            - TC++ 컴파일러에서는 10바이트, Dev-C++ 컴파일러에서는 12바이트, 유닉스나 리눅스에서 사용하는 gcc 컴파일러에서는 16바이트로 구현되어 있다.
     - 할당받은 메모리를 초기화하고 싶다면 calloc 함수를 사용한다. -> 할당된 메모리를 0으로 초기화 해준다.
     - 이전에 할당받은 메모리의 크기를 변경하고 싶다면 realloc 함수를 사용한다.
     - mmap과 munmap 함수를 사용해서 명시적으로 힙 메모리를 할당하거나 반환하며, sbrk 함수를 사용한다.
@@ -306,12 +312,13 @@
     - 우리의 할당기는 아래 코드에서 보여주는 것과 같은 memlib.c 패키지에서 제공되는 메모리 시스템의 모델을 사용한다.
         ```C
         /* Private global variables */
-        static char *mem_heap;  /* Points to first byte of heap */
-        static char *mem_brk; /* Points to last byte of heap plus 1 */
-        static char *mem_max_addr; /* Max legal heap addr plus 1 */
+        static char *mem_heap;  /* 힙의 처음을 가리키는 포인터 */
+        static char *mem_brk; /* 배당 받은 힙 공간의 마지막 자리를 가리키는 포인터 */
+        static char *mem_max_addr; /* MAX_HEAP의 끝 자리를 나타내는 포인트이며, 이 이상으로는 할당할 수 없음 */
         
         /* *mem_init - Initilaize the memory system model */
         
+        // 할당기를 초기화하고, 성공하면 0을, 아니면 -1을 반환
         void mem_init(void)
         {
             mem_heap = (char *)Malloc(MAX_HEAP);
@@ -325,6 +332,8 @@
         * In this model, the heap cannot be shrunk
         */
         
+        // incr(할당 요청이 들어왔을 때, 요청된 용량)가 들어왔을 때, 이것이 MAX_HEAP을 초과하지 않으면 추가로 mem_brk를 할당 요청 용량만큼 옮긴다.
+        // 용량의 크기가 음수이거나, MAX_HEAP을 초과하면 error 메세지를 반환한다.
         void *mem_sbrk(int incr)
         {
             char *old_brk = mem_brk;
@@ -339,16 +348,6 @@
         }
         ```
         - 이 모델의 목적은 우리가 설계한 할당기가 기존의 시스템 수준의 malloc 패키지와 상관없이 돌 수 있도록 하기 위한 것이다.
-        - 전역변수
-            - mem_heap : 힙의 처음을 가리키는 포인터다.
-            - mem_brk : 배당 받은 힙 공간의 마지막 자리를 가리킨다. 
-            - mem_max_addr : MAX_HEAP의 끝 자리를 나타내며, 이 이상으로는 할당할 수 없다. 
-        - 함수
-            - init()
-                - 할당기를 초기화하고, 성공하면 0을, 아니면 -1을 반환한다.
-            - mem_sbrk()
-                - incr(할당 요청이 들어왔을 때, 요청된 용량)가 들어왔을 때, 이것이 MAX_HEAP을 초과하지 않으면 추가로 mem_brk를 할당 요청 용량만큼 옮긴다.
-                - 용량의 크기가 음수이거나, MAX_HEAP을 초과하면 error 메세지를 반환한다.
 - 할당기의 기본 블록 구성
     - 최소 블록 크기는 16바이트이고, 가용 리스트는 묵시적 가용 리스트로 구성되며, 아래 그림과 같이 변하지 않는 형태를 갖는다.  
     <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2Fp4Hoa%2Fbtre4Odp0ce%2FyoRVbdKPA3hY4pFcBdFMKK%2Fimg.png"></img>
@@ -364,52 +363,37 @@
     - 프롤로그와 에필로그 블록들은 연결과정 동안에 가자앚리 조건을 없애주기 위한 속임수다.
     - 할당기는 한 개의 정적(static) 전역변수를 사용하며, 항상 프롤로그 블록을 가리킨다.
 - 가용 리스트 조작을 위한 기본 상수와 매크로
-    -  아래의 코드는 할당기 코드 전체에서 가용 리스트 조작을 위한 기본 상수 및 매크로 정의이다.
+    -  할당기 코드 전체에서 가용 리스트 조작을 위한 기본 상수 및 매크로를 정의하는 코드는 다음과 같다.
         ```C
-        /* Basic constants and macros */
-        #define WSIZE 4 /* Word and header/footer size (bytes) */
-        #define DSIZE 8 /* Double word size (bytes) */
-        #define CHUNKSIZE (1<<12) /* Extend heap by this amount (bytes) */
+        /* 기본 상수 및 매크로 */
+        #define WSIZE 4 // 워드와 헤더 및 풋터 크기 정의
+        #define DSIZE 8 // 더블 워드 크기 정의
+        #define CHUNKSIZE (1<<12) // 초기 가용 블록과 확장시 추가되는 블록 크기 정의
 
-        #define MAX(x, y) ((x) > (y)? (x) : (y))
+        #define MAX(x, y) ((x) > (y)? (x) : (y)) // 최대값 구하는 함수 정의
 
-        /* Pack a size and allocated bit into a word */
-        #define PACK(size, alloc) ((size) | (alloc))
+        /* 헤더 및 풋터의 값(크기와 할당 여부) 반환 */
+        #define PACK(size, alloc) ((size) | (alloc)) // 크기와 할당 비트를 통합해서 헤더와 풋터에 저장할 수 있는 값 반환
 
-        /* Read and write a word at address p */
-        #define GET(p) (*(unsigned int *)(p))
-        #define PUT(p, val) (*(unsigned int *)(p) = (val))
+        /* 주소 p에서 워드를 읽거나 쓰는 함수 */
+        #define GET(p) (*(unsigned int *)(p)) // 포인터 p가 가리키는 블록의 데이터 반환
+        #define PUT(p, val) (*(unsigned int *)(p) = (val)) // 포인터 p가 가리키는 블록의 값 저장
 
-        /* Read the size and allocated fields from address p */
-        #define GET_SIZE(p) (GET(p) & ~0x7)
-        #define GET_ALLOC(p) (GET(p) & 0x1)
+        /* 헤더 또는 풋터에서 블록의 크기와 할당된 구역을 읽어옴 */
+        // & ~0x7 => 0x7:0000 0111 ~0x7:1111 1000이므로 ex. 1011 0111 & 1111 1000 = 1011 0000 : size 176bytes
+        #define GET_SIZE(p) (GET(p) & ~0x7) // 포인터 p가 가리키는 헤더 또는 풋터의 크기 반환
+        // & 0x1 => ex. 1011 0111 | 0000 0001 = 1 : Allocated
+        #define GET_ALLOC(p) (GET(p) & 0x1) // 포인터 p가 가리키는 헤더 또는 풋터의 할당 비트 반환
 
-        /* Given block ptr bp, compute address of its header and footer */
-        #define HDRP(bp) ((char *)(bp) - WSIZE)
-        #define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)
+        /* 각각 블록 헤더와 풋터가 가리키는 포인터 반환 */
+        // bp : 현재 블록 포인터
+        #define HDRP(bp) ((char *)(bp) - WSIZE) // 현재 블록 헤더의 위치 반환(bp - 1워드)
+        #define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE) // 현재 블록 풋터의 위치 반환(bp + 현재 블록 크기 - 더블 워드 크기)
 
-        /* Given block ptr bp, compute address of next and previous blocks */
-        #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
-        #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
+        /* 각각 이전 블록과 다음 블록을 가리키는 포인터 반환 */
+        #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE))) // 다음 블록의 블록 포인터 반환(bp + 현재 블록 크기 - 1워드)
+        #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) // 이전 블록의 블록 포인터 반환(bp - 현재 블록 크기 - 2워드)
         ```
-        - 상수
-            - WSIZE : 워드 사이즈 정의
-            - DSIZE : 더블 워드 사이즈 정의
-            - CHUNKSIZE : 초기 가용 블록과 힙 확장시 추가되는 블록 크기 정의
-        - 매크로
-            - MAX(x, y) : 최대값 구하는 함수 정의
-            - PACK(size, alloc) : 크기와 할당 비트를 통합해서 헤더와 풋터에 저장할 수 있는 값 반환
-            - GET(p) : 포인터 p가 가리키는 블록의 데이터 반환
-            - PUT(p, val) : 포인터 p가 가리키는 블록의 값 저장
-            - GET_SIZE(p) : 포인터 p가 가리키는 헤더 또는 풋터의 크기 반환
-                - 7을 비트연산 not으로 반전 시키고 & 연산으로 뒤의 3비트를 제외한 값을 읽어온다.
-                - & ~0x7 => 0x7:0000 0111 ~0x7:1111 1000이므로 ex. 1011 0111 & 1111 1000 = 1011 0000 : size 176bytes
-            - GET_ALLOC(p) : 포인터 p가 가리키는 헤더 또는 풋터의 할당 비트 반환
-                - & 0x1 => ex. 1011 0111 | 0000 0001 = 1 : Allocated
-            - HDRP(bp) : 현재 블록 헤더의 위치 반환(bp - 1워드)
-            - FTRP(bp) : 현재 블록 풋터의 위치 반환(bp + 현재 블록 크기 - 더블 워드 크기)
-            - NEXT_BLKP(bp) : 다음 블록의 블록 포인터 반환(bp + 현재 블록 크기 - 1워드)
-            - PREV_BLKP(bp) : 이전 블록의 블록 포인터 반환(bp - 현재 블록 크기 - 2워드)
 - 초기 가용 리스트 만들기
     - mm_malloc이나 mm_free를 호출하기 전에 어플리케이션은 mm_init 함수를 호출해서 힙을 초기화해야 한다.
     - mm_init 함수는 최초의 가용 블록(4words)을 가지고 힙을 생성하고 할당기를 초기화한다. 성공하면 0, 실패하면 -1을 리턴한다.  
@@ -419,143 +403,212 @@
         - 2번째 칸 : 용량은 2워드이며, 1(할당됨) 이라는 헤더를 적어 넣는다. 
         - 3번째 칸 : 용량은 2워드이며, 1 이라는 풋터를 적어 넣는다.(2번째, 3번째 칸은 prologue block이라고 칭한다.)
         - 4번째 칸 : 용량은 0워드이며, 1 이라는 헤더를 적어 넣는다.(이 칸은 앞으로 epilogue block header 라고 칭한다.)
-    - 아래 코드를 통해 빈 가용 리스트를 초기화해 주는 mm_init 함수를 살펴보자.
+    - 빈 가용 리스트를 초기화해 주는 mm_init 함수의 코드는 다음과 같다.
         ```C
         int mm_init(void)
         {
-        /* Create the initial empty heap */
-        if ((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
-        return -1;
-        PUT(heap_listp, 0);                             /* Alignment padding */
-        PUT(heap_listp + (1*WSIZE), PACK(DSIZE, 1));    /* Prologue header */
-        PUT(heap_listp + (2*WSIZE), PACK(DSIZE, 1));    /* Prologue footer */
-        PUT(heap_listp + (3*WSIZE), PACK(0, 1));        /* Epilogue header */
-        heap_listp += (2*WSIZE);
+            /* 메모리에서 4워드 가져와서 빈 힙 생성 */
+            // mem_sbrk: 힙 영역을 incr(0이 아닌 양수) 바이트 만큼 확장하고, 새로 할당된 힙 영역의 첫 번째 바이트를 가리키는 제네릭 포인터를 반환
+            if((heap_listp = mem_sbrk(4 * WSIZE)) == (void *) -1) // heap_listp에 4워드 만큼의 메모리를 확장
+                return -1; // 실패 시 -1 반환
 
-        /* Extend the empty heap with a free block of CHUNKSIZE bytes */
-        if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
-            return -1;
-        return 0;
+            PUT(heap_listp, 0);                                 // 더블 워드 경계로 정렬된 미사용 패딩
+            PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1));      // 프롤로그 헤더를 1워드 할당하고 DSIZE로 값 삽입
+            PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1));      // 프롤로그 풋터를 1워드 할당하고 DSIZE로 값 삽입
+            PUT(heap_listp + (3 * WSIZE), PACK(0, 1));          // 에필로그 헤더를 1워드 할당하고 0 사이즈 삽입
+            heap_listp += (2 * WSIZE); // 정적 전역 변수는 늘 prologue block을 가리킴
+
+            /* CHUNKSIZE 만큼 힙을 확장해 초기 가용 블록을 생성 */
+            if(extend_heap(CHUNKSIZE / WSIZE) == NULL) // 힙을 CHUNKSIZE 바이트로 확장하고 초기 가용 블록을 생성
+                return -1; // 실패 시 -1 반환
+            return 0;
         }
         ```
-        - if((heap_listp = mem_sbrk(4 * WSIZE)) == (void *) -1)
-            - heap_listp에 4워드 만큼의 메모리를 확장
-        - PUT(heap_listp, 0)
-            - 더블 워드 경계로 정렬된 미사용 패딩
-        - PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1))
-            - 프롤로그 헤더를 1워드 할당하고 DSIZE로 값 삽입
-        - PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1))
-            - 프롤로그 풋터를 1워드 할당하고 DSIZE로 값 삽입
-        - PUT(heap_listp + (3 * WSIZE), PACK(0, 1))
-            - 에필로그 헤더를 1워드 할당하고 0 사이즈 삽입
-        - heap_listp += (2 * WSIZE)
-            - 정적 전역 변수는 늘 prologue block을 가리킨다.
-        - if(extend_heap(CHUNKSIZE / WSIZE) == NULL)
-            - 힙을 CHUNKSIZE 바이트로 확장하고 초기 가용 블록을 생성
 - 힙을 초기화한 후, extend_heap 함수를 호출해서 힙을 CHUNKSIZE 만큼 힙을 확장해 초기 가용 블록을 생성한다.
-    - 아래 코드를 통해 힙을 CHUNKSIZE 바이트로 확장하고 초기 가용 블록을 생성하는 과정을 살펴보자.
+    - 힙을 CHUNKSIZE 바이트로 확장하고 초기 가용 블록을 생성하는 extend_heap 함수의 코드는 다음과 같다.
         ```C
         static void *extend_heap(size_t words)
         {
-        char *bp;
-        size_t size;
+            char *bp;
+            size_t size;
 
-        /* Allocate an even number of words to maintain alignment */
-        size = (words % 2) ? (words+1) * WSIZE : words * WSIZE;
-        if ((long)(bp = mem_sbrk(size)) == -1)
-        return NULL;
+            size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE; // 워드가 홀수인 경우 정렬을 위해 인접 2워드의 배수(8바이트)로 반올림하며, 추가적인 힙 공간 요청
+            if((long)(bp = mem_sbrk(size)) == -1) // mem_sbrk 함수에서 size가 할당 가능한 힙의 범위를 초과했다고 판단하면, -1을 반환하고 할당하지 않음
+                return NULL;
 
-        /* Initialize free block header/footer and the epilogue header */
-        PUT(HDRP(bp), PACK(size, 0)); /* Free block header */
-        PUT(FTRP(bp), PACK(size, 0)); /* Free block footer */
-        PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); /* New epilogue header */
+            PUT(HDRP(bp), PACK(size, 0)); // 새로운 블록에 헤더 생성
+            PUT(FTRP(bp), PACK(size, 0)); // 새로운 블록의 푸터 생성
+            PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새로운 블록 뒤에 붙는 에필로그 헤더 생성
 
-        /* Coalesce if the previous block was free */
-        return coalesce(bp);
+            return coalesce(bp); // 이전 힙이 가용 블록으로 끝났다면, 두 개의 가용 블록을 통합하기 위해 coalesce 호출
         }
         ```
         - extend_heap은 두 가지 다른 경우에 호출한다.
             - 힙이 초기화될 경우와 mm_malloc이 적당한 맞춤 fit을 찾지 못했을 경우 호출한다.
         - 위 경우일 때 정렬을 유지하기 위해서 extend_heap은 요청한 크기를 인접 2워드의 배수(8배수)로 반올림하고, 메모리 시스템으로부터 추가적인 힙 공간을 요청한다.
-        - size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE
-            - 워드가 홀수인 경우 정렬을 위해 인접 2워드의 배수(8바이트)로 반올림하며, 추가적인 힙 공간 요청
-        - if((long)(bp = mem_sbrk(size)) == -1)
-            - mem_sbrk 함수에서 이 size가 할당 가능한 힙의 범위를 초과했다고 판단하면, -1을 반환하고 할당하지 않음
-        - PUT(HDRP(bp), PACK(size, 0))
-            - 새로운 블록에 헤더 생성
-        - PUT(FTRP(bp), PACK(size, 0))
-            - 새로운 블록의 푸터 생성
-        - PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1))
-            - 새로운 블록 뒤에 붙는 에필로그 헤더 생성
-        - return coalesce(bp)
-            - 이전 힙이 가용 블록으로 끝났다면, 두 개의 가용 블록을 통합하기 위해 coalesce 호출
 - 블록 반환
     - 응용은 이전에 할당한 블록을 mm_free 함수를 호출해서 반환한다.
-    - 블록을 반환하는 코드는 간단하며, 아래 코드를 살펴보자.
+    - 블록을 반환하는 mm_free 함수의 코드는 다음과 같다.
         ```C
-        void mm_free(void *bp)
+        void mm_free(void *ptr)
         {
-        size_t size = GET_SIZE(HDRP(bp));
+            size_t size = GET_SIZE(HDRP(ptr)); // 해당 블록의 크기를 알아내 헤더와 풋터의 정보를 수정
 
-        PUT(HDRP(bp), PACK(size, 0));
-        PUT(FTRP(bp), PACK(size, 0));
-        coalesce(bp);
+            PUT(HDRP(ptr), PACK(size, 0)); // 헤더를 0으로 할당
+            PUT(FTRP(ptr), PACK(size, 0)); // 풋터를 0으로 할당
+            coalesce(ptr); // coalesce를 호출하여 가용 메모리를 연결
         }
         ```
-        - size_t size = GET_SIZE(HDRP(bp))
-            - 해당 블록의 크기를 알아내 헤더와 풋터의 정보를 수정
-        - PUT(HDRP(bp), PACK(size, 0))
-            - 헤더를 0으로 할당
-        - PUT(FTRP(bp), PACK(size, 0))
-            - 풋터를 0으로 할당
-        - coalesce(bp)
-            - coalesce를 호출하여 가용 메모리를 연결
 - 블록 연결
     - coalesce 함수는 mm_free 함수를 이용하여 블록을 반환하고, 경계 태그 연결을 사용해서 상수 시간에 인접 가용 블록들과 통합한다.
     - 직전 블록의 풋터과 직후 블록의 헤더를 보고 가용 여부를 확인한다.
-    - 아래 코드를 통해 가용 블록을 연결하는 과정을 살펴보자.
+    - 가용 블록을 연결하는 coalesce 함수의 코드는 다음과 같다.
         ```C
         static void *coalesce(void *bp)
         {
-        size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
-        size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
-        size_t size = GET_SIZE(HDRP(bp));
+            // 직전 블록의 풋터과 직후 블록의 헤더를 보고 가용 여부를 확인
+            size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp))); // 직전 블록 가용 여부
+            size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp))); // 직후 블록 가용 여부
+            size_t size = GET_SIZE(HDRP(bp));
 
-        if (prev_alloc && next_alloc) {             /* Case 1 */
-        return bp;
-        }
+            if(prev_alloc && next_alloc) { // case 1 : 이전, 다음 블록이 모두 할당인 경우 -> 현재만 반환
+                return bp;
+            }
 
-        else if (prev_alloc && !next_alloc) {       /* Case 2 */
-        size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
-        PUT(HDRP(bp), PACK(size, 0));
-        PUT(FTRP(bp), PACK(size,0));
-        }
+            else if(prev_alloc && !next_alloc) { // case 2 : 이전 블록 할당, 다음 블록 가용인 경우 -> 다음 블록과 병합
+                size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
+                PUT(HDRP(bp), PACK(size, 0));
+                PUT(FTRP(bp), PACK(size, 0));
+            }
 
-        else if (!prev_alloc && next_alloc) {       /* Case 3 */
-        size += GET_SIZE(HDRP(PREV_BLKP(bp)));
-        PUT(FTRP(bp), PACK(size, 0));
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-        bp = PREV_BLKP(bp);
-        }
+            else if(!prev_alloc && next_alloc) { // case 3 : 이전 블록 가용, 다음 블록 할당인 경우 -> 이전 블록과 병합
+                size += GET_SIZE(HDRP(PREV_BLKP(bp)));
+                PUT(FTRP(bp), PACK(size, 0));
+                PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+                bp = PREV_BLKP(bp);
+            }
 
-        else {                                      /* Case 4 */
-        size += GET_SIZE(HDRP(PREV_BLKP(bp))) +
-        GET_SIZE(FTRP(NEXT_BLKP(bp)));
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-        PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
-        bp = PREV_BLKP(bp);
-        }
-        return bp;
+            else { // case 4 : 이전, 다음 블록 모두 가용인 경우 -> 이전 블록과 다음 블록 병합
+                size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
+                PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+                PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
+                bp = PREV_BLKP(bp);
+            }
+            return bp;
         }
         ```
-        - size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp))) : 직전 블록 가용 여부
-        - size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp))) : 직후 블록 가용 여부
-        - if(prev_alloc && next_alloc) : case 1 : 이전, 다음 블록이 모두 할당인 경우 -> 현재만 반환
-        - else if(prev_alloc && !next_alloc) : case 2 : 이전 블록 할당, 다음 블록 가용인 경우 -> 다음 블록과 병합
-        - else if(!prev_alloc && next_alloc) : case 3 : 이전 블록 가용, 다음 블록 할당인 경우 -> 이전 블록과 병합
-        - else : case 4 : 이전, 다음 블록 모두 가용인 경우 -> 이전 블록과 다음 블록 병합
 - 블록 할당
-    - 
+    - 어플리케이션은 mm_malloc 함수를 호출하여 size 바이트의 메모리 블록을 요청한다.
+    - 추가적인 요청들을 체크한 후에 할당기는 요청한 블록 크기를 조절해서 헤더와 풋터를 위한 공간을 확보하고, 더블 워드 요건을 만족시킨다.
+    - 블록을 할당하는 mm_malloc 함수의 코드는 다음과 같다.
+        ```C
+        void *mm_malloc(size_t size)
+        {
+            size_t asize; /* 조정된 블록 크기 */
+            size_t extendsize; /* 적합하지 않은 경우 힙을 확장할 크기 */
+            char *bp;
+
+            /* 가짜 요청 무시 */
+            // 만약 할당 요청받은 용량이 0이면 그냥 반환
+            if(size == 0)
+                return NULL;
+
+            /* 오버헤드 및 정렬 요구 사항을 포함하도록 블록 크기를 조정 */
+            if(size <= DSIZE) // 사이즈가 2워드(8바이트) 이하라면 4워드로 할당 요청(앞의 1워드는 헤더에, 뒤의 1워드는 풋터)
+                asize = 2 * DSIZE;
+            else // 할당 요청의 용량이 2워드 초과(8바이트의 배수에 맞지 않은 경우)라면 충분한 8바이트의 배수의 용량을 할당
+                asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE);
+
+            /* 적당한 크기의 가용 블록을 가용 리스트에서 검색 */
+            if((bp = find_fit(asize)) != NULL) { // find_fit 함수로 적당한 크기의 가용 블록을 검색
+                place(bp, asize); // place 함수로 초과 부분을 분할하고 새롭게 할당한 블록의 블록 포인터를 반환
+                return bp;
+            }
+
+            /* 적당한 크기의 가용 블록을 찾지 못한다면 extend_heap 함수로 힙을 확장하여 추가 확장 블록을 배정 */
+            extendsize = MAX(asize, CHUNKSIZE); // 둘 중 더 큰 값으로 사이즈 지정
+            // extend_heap()은 워드 단위로 인자를 받으므로 WSIZE로 나눔
+            if((bp = extend_heap(extendsize / WSIZE)) == NULL) // 힙 확장 실패 시 NULL을 반환(extendsize / WSIZE = 칸의 개수)
+                return NULL;
+            place(bp, asize); // 힙 확장 성공 시 블록을 배치하고 bp 반환
+            return bp;
+        }
+        ```
+        - 동적 할당할 메모리 크기를 받아 알맞은 크기의 블록을 할당한다.
+        - 만약 후보가 없으면 힙을 CHUNKSIZE만큼 늘려 할당 받는다. 그리고 할당 받은 블록의 포인터를 반환한다.
+- 적절한 가용 블록 검색
+    - mm_malloc 함수에서 find_fit 함수를 통해 적당한 크기의 가용 블록을 검색한다.
+    - 적당한 가용 블록을 검색하는 find_fit 함수의 코드는 다음과 같고, 여기서는 first_fit을 사용한다.
+        ```C
+        static void *find_fit(size_t asize)
+        {
+            void *bp;
+
+            // Free list에서 유일한 할당 블록은 리스트 맨 뒤의 프롤로그 블록이므로, 할당 블록을 만나면 모든 list 노드들을 다 확인한 것으로 탐색 종료
+            for(bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) { // bp는 힙의 시작점을 가리키는 heap_listp에서 시작하여 에필로그 블록까지 탐색
+                if(!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) { // 만약 해당 헤더의 블록이 할당되어있지 않고(GET_ALLOC 함수로 판단), 사이즈도 원하는 크기(asize)보다 크다면(GET_SIZE로 판단)
+                    return bp; // bp를 반환
+                }
+            }
+            return NULL; // 못 칮으면 NULL 반환
+        }
+        ```
+- 데이터 배치
+    - 요청한 블록을 가용 블록의 시작 부분에 배치하고, 나머지 부분의 크기가 최소 블록 크기와 같거나 큰 경우에는 분할한다.
+    - 데이터를 배치하고 분할하는 place 함수의 코드는 다음과 같다.
+        ```C
+        static void place(void *bp, size_t asize) // place 함수는 데이터를 할당할 가용 블록의 bp와 배치 용량을 할당받음
+        {
+            size_t csize = GET_SIZE(HDRP(bp)); // 할당할 가용 블록의 전체 크기를 csize로 저장
+
+            if((csize - asize) >= (2 * DSIZE)) { // 분할이 가능한 경우
+                // 요청 용량만큼 블록을 배치하고 헤더와 풋터를 배치
+                PUT(HDRP(bp), PACK(asize, 1));
+                PUT(FTRP(bp), PACK(asize, 1));
+                // 남은 블록에 헤더와 풋터를 배치
+                bp = NEXT_BLKP(bp);
+                PUT(HDRP(bp), PACK(csize-asize, 0));
+                PUT(FTRP(bp), PACK(csize-asize, 0));
+            }
+            else { // csize와 asize의 차이가 네 칸(16바이트)보다 작다면 해당 블록을 통째로 사용하고, 헤더와 풋터를 배치
+                PUT(HDRP(bp), PACK(csize, 1));
+                PUT(FTRP(bp), PACK(csize, 1));
+            }
+        }
+        ```
+- 메모리 재할당
+    - mm_realloc 함수는 malloc으로 할당 받은 메모리 영역의 size를 변경하여 재할당받는 역할을 한다.
+    - 여기서 이미 할당된 블록의 크기를 직접 건드리는 것이 아니라, 임시로 요청 크기 만큼의 블록을 만들고 현재의 블록을 반환해야 한다.
+    - 또한 memcpy 함수를 이용하여 블록 내 데이터도 같이 옭겨준 다음 기존 블록을 반환한다.
+    - mm_realloc 함수의 코드는 다음과 같다.
+        ```C
+        void *mm_realloc(void *ptr, size_t size)
+        {
+            void *oldptr = ptr;
+            void *newptr;
+            size_t copySize;
+            
+            newptr = mm_malloc(size);
+            if (newptr == NULL)
+            return NULL;
+            copySize = GET_SIZE(HDRP(oldptr));
+            if (size < copySize)
+            copySize = size;
+            memcpy(newptr, oldptr, copySize);
+            mm_free(oldptr);
+            return newptr;
+        }
+        ```
+- Implicit, first-fit으로 구현된 할당기 테스트 결과
+    - 점수 : Perf index = 44 (util) + 9 (thru) = 53/100
+    - 가용 블록 탐색 시 항상 처음 위치에서 시작하는 방식으로, 처리량(Thru) 점수가 낮게 나온다.
+    - 또한, 내부 단편화와 외부 단편화가 많이 생길 수 있는 가능성이 있다.
+- Implicit, next-fit으로 구현된 할당기 테스트 결과
+    - 점수 : Perf index = 44 (util) + 38 (thru) = 83/100
+    - 가용 블록 탐색 시 마지막 탐색 지점부터 시작하는 방식으로, first fit 대비 빨리 가용블록을 찾을 확률이 높다.
+- Implicit, best-fit으로 구현된 할당기 테스트 결과
+    - 점수 : Perf index = 45 (util) + 8 (thru) = 53/100
+    - 가용 블록 탐색 시 first-fit과 마찬가지로 힙의 처음부터 끝까지 탐색하지만, 가장 알맞는 크기의 블록을 찾을 수 있으므로 메모리 이용도는 다른 방법보다 우수하다.
 
 ## 참조
 - https://firecatlibrary.tistory.com/34
