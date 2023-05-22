@@ -29,7 +29,7 @@
         - IP라는 고유한 주소를 통해 목적지와 출발지를 구할 수 있으며 호스트는 IP 주소를 가지고 있음   
         <br/>
 2. 네트워크 호스트의 하드웨어 구성  
-    <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FbHOW89%2FbtrfsdR0uGB%2FHRzacch5rDKNKZNpjUkFK1%2Fimg.png"></img>
+<img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FbHOW89%2FbtrfsdR0uGB%2FHRzacch5rDKNKZNpjUkFK1%2Fimg.png"></img>
     - 클라이언트와 서버는 종종 별도의 호스트에서 돌아가며, 컴퓨터 네트워크의 하드웨어 및 소프트웨어 자원을 사용해서 통신 수행   
     <br/>
     - 호스트 입장에서 네트워크 뭘까?
@@ -70,7 +70,7 @@
     - LAN에서는 이더넷이라는 기술을 사용하여 통신   
     <br/>
     - 이더넷 세그먼트  
-        <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FZApKr%2FbtrQpJIB6Xh%2FKjBXlbyDWs22O5e63UkKR1%2Fimg.png"></img>
+    <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FZApKr%2FbtrQpJIB6Xh%2FKjBXlbyDWs22O5e63UkKR1%2Fimg.png"></img>
         - 꼬임쌍선(Twisted-pair cable) 즉, 랜 케이블과 허브로 구성
         - 방이나 빌딩의 층과 같이 작은 지역에 설치
         - 각 전선은 동일한 최대 비트 대역폭을 가짐(100Mb/s 또는 1Gb/s)
@@ -78,7 +78,7 @@
         <br/>
     - 이더넷 세그먼트 구성요소
         - 꼬임쌍선(Twisted-pair cable)  
-            <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FkU7Xa%2FbtrQpSSMkEU%2F8knfsO4Mvbk4OmmuVq5lb0%2Fimg.png"></img>
+        <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FkU7Xa%2FbtrQpSSMkEU%2F8knfsO4Mvbk4OmmuVq5lb0%2Fimg.png"></img>
             - 구리 선 여덟개를 두개씩 꼬아 만든 네 쌍의 전선
             - 구리선을 꼬는 이유는 노이즈를 방지하기 위함
             - 꼬임쌍선 종류
@@ -89,13 +89,13 @@
                     - 두개씩 꼬아 만든 선으로 된 케이블
                     - 가정, 사무실 및 대기업에서 흔히 사용
         - 허브(Hub)  
-            <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FcLFQLm%2FbtrQqLFqknN%2F7MD1LchxqzPMZyfyZowSt0%2Fimg.png"></img>
+        <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FcLFQLm%2FbtrQqLFqknN%2F7MD1LchxqzPMZyfyZowSt0%2Fimg.png"></img>
             - 랜을 구성할 때 가까운 거리에 있는 장비들을 케이블을 사용하여 연결하는 장치
             - 포트를 여러 개 가지고 있어 컴퓨터 여러 대와 통신 가능
             - 어떤 포트로부터 데이터를 받았을 때, 항상 나머지 모든 포트로 데이터를 전송   
             <br/>
     - 이더넷 프레임  
-        <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FkO83N%2FbtrQrt5iGKj%2Fh8n9J481HQp9TXNVPWX0iK%2Fimg.png"></img>
+    <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FkO83N%2FbtrQrt5iGKj%2Fh8n9J481HQp9TXNVPWX0iK%2Fimg.png"></img>
         - 허브는 한 포트에서 들어온 데이터를 나머지 모든 포트로 전달하는데 어떻게 다른 목적지 호스트로 전송할 수 있을까?🤔
             - 이더넷 프레임 이용
             - 이더넷 프레임은 프레임의 출처와 목적지를 명확하게 구분하고, 오류 검출 기능을 통해 신뢰성 있는 데이터 전송을 지원함므로 데이터를 안전하게 전달할 수 있음
@@ -117,7 +117,7 @@
             - 트레일러 : 데이터(페이로드) 끝에 데이터 무결성을 보장하기 위한 프레임 체크 시퀀스가 있음   
             <br/>
     - 브릿지형 이더넷  
-        <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FbCQZdh%2FbtrQrGwAU7p%2F43kn69LzKE68RpTOeKWQk1%2Fimg.png"></img>
+    <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FbCQZdh%2FbtrQrGwAU7p%2F43kn69LzKE68RpTOeKWQk1%2Fimg.png"></img>
         - 브릿지형 이더넷이란?
             - 브릿지라는 장비를 사용해서 다수의 이더넷 세그먼트가 연결하여 더 큰 LAN을 구성한 것
             - 케이블이 허브와 브릿지를 연결하고, 브릿지와 브릿지를 연결함으로서 건물 전체나 캠퍼스 전체를 아우르는 더 큰 네트워크가 만들어질 수 있음   
@@ -137,7 +137,7 @@
             - 패킷은 패킷 크기, 소스, 목적지 호스트 주소를 포함한 헤더와 데이터로 구성   
             <br/>
     - internet에서 데이터가 하나의 호스트에서 다른 호스트로 이동하는 방법(8단계)  
-        <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FwMnOd%2FbtrfDgWhV21%2FMQUNWUaPHitdHDUWZCwHA0%2Fimg.png"></img>
+    <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FwMnOd%2FbtrfDgWhV21%2FMQUNWUaPHitdHDUWZCwHA0%2Fimg.png"></img>
         - 1단계
             - 클라이언트는 시스템 콜을 호출하여 클라이언트의 가장 주소 공간의 데이터를 커널 버퍼로 복사
         - 2단계
