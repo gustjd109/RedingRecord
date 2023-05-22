@@ -139,6 +139,148 @@
         - 8단계
             - 호스트 B의 프로토콜 스프트웨어는 패킷 헤더와 프레임 헤더를 벗기고, 서버가 이 데이터를 읽는 시스템 콜을 호출할 때 서버의 가상 주소공간으로 복사
 
-## 참조
-- https://stay-present.tistory.com/87
-- https://github.com/IT-Book-Organization/Computer-Networking_A-Top-Down-Approach/tree/main
+## 11.3 글로벌 IP 인터넷
+
+
+## 11.4 소켓 인터페이스
+### 11.4.9 예제 Echo 클라이언트와 서버
+1. Echo 클라이언트의 메인 루틴
+    - echo 클라이언트 메인 루틴 코드
+        ```C
+        #include "csapp.h"
+
+        int main(int argc, char **argv)
+        {
+            int clientfd;
+            char*host, *port, buf[MAXLINE];
+            rio_t rio;
+
+            if(argc != 3) {
+                fprintf(stderr, "usage: %s <host> <port>\n", argv[0]);
+                exit(0);
+            }
+            host = argv[1];
+            port = argv[2];
+
+            clientfd = Open_clientfd(host, port);
+            Rio_readinitb(&rio, clientfd);
+
+            while(Fgets(buf, MAXLINE, stdin) != NULL) {
+                Rio_writen(clientfd, buf, strlen(buf));
+                Rio_readlineb(&rio, buf, MAXLINE);
+                Fputs(buf, stdout);
+            }
+            Close(clientfd);
+            exit(0);
+        }
+        ```
+    - echo 클라이언트 메인 루프 동작 과정
+        - 서버와의 연결을 수립
+        - 클라이언트 표준 입력에서 텍스트 줄을 반복해서 읽는 루프에 진입
+        - 서버에 텍스트 줄을 전송
+        - 서버에서 echo 줄을 읽어서 그 결과를 표준 출력으로 인쇄<br><br>
+    - 루프 종료 과정
+        - 루프는 fgets가 EOF 표준 입력(사용자가 Ctrl + D를 눌렀거나 파일로 텍스트 줄을 모두 소진했을 경우)을 만나면 종료
+        - 루프가 종료한 후, 클라이언트는 식별자를 닫음
+        - 이때 서버로 EOF라는 통지가 전송
+        - 서버는 rio_realineb함수에서 리턴 코드 0을 받으면 이 사실을 감지하고, 자신의 식별자를 닫은 후에 클라이언트는 종료
+        - 클라이언트의 커널이 프로세스가 종료할 때 자동으로 열었던 모든 식별자를 닫아주기 때문에 24번 줄의 Close는 불필요
+            - 하지만, 열었던 모든 식별자를 명시적으로 닫아주는 것이 올바른 프로그래밍 습관이므로 명시해 주는 것이 좋음<br><br>
+2. 반복적 echo 서버 메인 루틴
+    - echo 서버 메인 루틴 코드
+        ```C
+        #include "csapp.h"
+
+        int main(int argc, char **argv)
+        {
+            int listenfd, connfd;
+            socklen_t clientlen;
+            struct sockaddr_storage clientaddr; /* Enough space for any address */
+            char client_hostname[MAXLINE], client_port[MAXLINE];
+
+            if(argc != 2) {
+                fprintf(stderr, "usage: %s <port>\n", argv[0]);
+                exit(0);
+            }
+
+            listenfd = Open_listenfd(argv[1]);
+            while(1) {
+                clientlen = sizeof(struct sockaddr_storage);
+                connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+                Getnameinfo((SA *) &clientaddr, clientlen, client_hostname, MAXLINE, client_port, MAXLINE, 0);
+                printf("Connected to (%s, %s)\n", client_hostname, client_port);
+                echo(connfd);
+                Close(connfd);
+            }
+            exit(0);
+        }
+        ```
+    - echo 서버 메인 루프 동작 과정
+        - 듣기 식별자(Open_listenfd) 오픈 후 무한 루프에 진입
+        - 각각의 반복 실행은 클라이언트로부터 연결 요청 대기, 도메인 이름과 연결된 클라이언트의 포트 출력, 클라이언트를 서비스하는 echo 함수를 호출
+        - echo 루틴이 리턴한 후 메인 루틴은 연결 식별자를 닫음
+        - 클라이언트와 서버가 자신들의 식별자를 닫은 후 연결 종료<br><br>
+    - 소켓 주소 구조체인 clientaddr 변수
+        - accept가 리턴하기 전 clientaddr에는 연결의 다른 쪽 끝의 클라이언트의 소켓 주소로 채워짐
+        - clientaddr이 struct sockaddr_in이 아닌 struct sockaddr_storage형으로 선언된 이유
+            - 정의에 의해 sockaddr_storage 구조체는 모든 형태의 소켓 주소를 저장하기에 충분히 크며, 이것은 코드를 프로토콜-독립적으로 유지해줌<br><br>
+    - 반복서버(iterative server)
+        - 위와 같이 한 번에 한 개씩의 클라이언트를 반복해서 실행하는 종류의 echo 서버
+        - 12장에서 다수의 클라이언트를 동시에 처리하는 복잡한 동시성 서버를 만드는 방법을 배울 예정<br><br>
+3. 텍스트 줄을 읽고 echo해주는 echo 함수
+    - echo 루틴 코드
+        ```C
+        #include "csapp.h"
+
+        void echo(int connfd)
+        {
+            size_t n;
+            char buf[MAXLINE];
+            rio_t rio;
+
+            Rio_readinitb(&rio, connfd);
+            while((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0) {
+                printf("server received %d bytes\n", (int)n);
+                Rio_writen(connfd, buf, n);
+            }
+        }
+        ```
+    - echo 루틴 동작 과정
+        - 10번 줄에서 rio_readlineb 함수가 EOF를 만날 때까지 텍스트 줄을 반복해서 읽고 써줌
+
+## 숙제 문제
+### CSAPP 11장 11.6c 문제 풀이
+1. Tiny의 출력을 조사해서 여러분이 사용하는 브라우저의 HTTP 버전을 결정하라.
+    - 우선 CSAPP 솔루션이 나온 정답은 HTTP 1.1이지만, 1.0도 가능<br><br>
+    - HTTP 버전 확인 방법
+        - tiny 서버 실행
+        - 브라우저에서 "AWS 퍼블릭 주소:포트번호"로 실행
+        - 개발자 도구 실행
+        - Network 항목 클릭
+        - 마우스 오른쪽 클릭 -> header option 클릭 -> protocol 체크
+        - 개발자 도구 인터페이스에 표시되는 protocol 항목에서 HTTP 버전 확인
+        - 자세한 사항은 아래 사이트 참조
+            - https://krksap.tistory.com/1152<br><br>
+    - 1.0이 가능한 이유
+        - serve_static 함수의 sprintf(buf, "HTTP/1.0 200 OK\r\n");을 그대로 사용하면 브라우저에서 HTTP 1.1을 전송해옴
+        - sprintf(buf, "HTTP/1.1 200 OK\r\n");에서 HTTP 버전을 1.0로 변경하면 브라우저에서 HTTP 1.0을 전송해옴<br><br>
+    - 그럼 2.0도 가능할까?
+        - 가능할 것으로 보임
+        - 하지만, tiny 서버를 이용하면 브라우저에서 HTTP 2.0을 전송받지 못함<br><br>
+    - 왜 tiny 서버를 이용하면 브라우저에서 HTTP 2.0을 전송받지 못할까?
+        - 헤더의 차이
+            - HTTP/1.1
+                - HTTP/1.1의 헤더는 평문이고, 크기가 500에서 800바이트 정도
+                - 쿠키가 포함된 경우 킬로바이트까지 증가
+                - 예를 들어, 네이버를 요청한 상태에서 또 다른 요청을 하게되면 헤더의 차이는 없음
+                - 단, 중복된 필드가 존재할 것이고, 중복된 데이터를 다시 보낼 것
+            - HTTP/2.0
+                - HTTP/2.0에서는 헤더를 중복해서 전송하지 않고, 압축해서 전송
+                - HTTP/1.1과 동일하게 네이버에 요청한 상태에서 또 다른 요청을 했다고 가정
+                    - 첫 번째 요청에서는 모든 필드를 모두 전송
+                    - 두 번째 요청에서는 중복되는 필드를 제외한 나머지 필드만을 전송
+                - 이렇게 HTTP/2.0은 중복 헤더 데이터를 전송하지 않으므로 매 요청바다 오버헤드를 크게 줄일 수 있음
+                    - 같은 요청을 폴링하는 경우, 헤더가 변한게 없으므로 헤더 오버헤드는 0바이트
+                - 위와 같이 헤더 중복을 제거하고, 과거 포스팅한 허프만 코딩 방식으로 또 한번 압축을 진행
+                - 이런 방식으로 HTTP/2.0에서는 헤더 필드를 압축하여 프로토콜 오버헤더를 줄일 수 있음
+                - 헤더 압축에 대해 더 자세한 사항은 RFC7540 공식 문서 참고
