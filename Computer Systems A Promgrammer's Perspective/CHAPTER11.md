@@ -555,3 +555,85 @@
             - 견고하게 n 바이트를 씁는 함수(버퍼링되지 않음)
             - 바이트 수를 반환하거나 오류 시 -1을 반환
             - n 바이트 미만이 기록되면 오류를 반환
+
+### 11.10 문제 풀이
+1. 문제 A
+    - 그림 11.27의 CGI adder 함수에 대한 HTML 형식을 작성하시오.
+    - 이 형식은 사용자가 함께 더할 두 개의 숫자로 채우는 두 개의 텍스트 상자를 포함해야 한다.
+    - 여러분의 형식은 GET 메소드를 사용해서 컨텐츠를 요청해야 한다.<br><br>
+    - form-adder.html 소스코드
+        ```html
+        <html>
+            <head><title>Tiny Sever</title></head>
+            <body>
+                <form action="/cgi-bin/form-adder" method="GET">
+                    <p>First Number : <input type="text" name="first"/></p>
+                    <p>Second Number : <input type="text" name="second"/></p>
+                    <input type="submit" value="Submit"/>
+                </form>
+            </body>
+        </html>
+        ```
+    - HTML form 태그
+        - 사용자가 입력하거나 선택한 정보를 서버로 전송하기 위해서 쓰는 태그
+        - 사용자 입력을 위한 요소로 사용자로부터 정보를 수집하는 역할 수행
+        - 주로, 웹페이지 상에서 로그인, 회원가입 등에 사용<br><br>
+        - form 태그 속성
+            - action : 폼 전송 버튼을 눌렀을 때 이동하는 페이지의 경로를 지정
+            - name : 폼을 식별하기 위한 이름을 지정
+            - accept-charset : 폼 전송에 사용할 문자 인코딩 지정
+            - target : action에서 지정한 파일을 현재 창이 아닌 다른 위치에 열도록 지정
+                - target 속성
+                    - _blank : 서버로부터 받은 응답을 새로운 윈도우나 탭에서 보여줌
+                    - _self : 서버로부터 받은 응답을 링크가 위치한 현재 프레임에서 보여줌(기본값으로 생략 가능)
+                    - _parent : 서버로부터 받은 응답을 현재 프레임의 부모 프레임에서 보여줌
+                    - _top : 서버로부터 받은 응답을 명시된 프레임에서 보여줌
+            - method : 폼을 서버에 전송할 http 메소드 지정(GET 또는 POST)
+                - GET
+                    - URL 끝에 데이터를 붙여 전송하는 방법
+                    - 데이터가 외부에 노출되어 보안에 취약
+                    - 지정된 리소스에서 데이터를 요청하는 경우인 읽을 때 사용하는 메소드
+                - POST
+                    - URL에 보이지 않게 데이터를 전성하는 방법
+                    - 보내려는 데이터가 개인 정보나 보안을 요구하는 경우 사용
+                    - 지정된 리소스에서 데이터를 처리할 경우인 쓰기, 수정, 삭제할 때 사용<br><br>
+2. 문제 B
+    - 실제 브라우저를 사용해서 Tiny로부터 이 형식을 요청하고, 채운 형식을 Tiny에 보내고, adder가 생성한 동적 컨텐츠를 표시하는 방법으로 작업을 체크하라.
+    - form-adder 함수 소스코드
+        ```C
+        #include "csapp.h"
+
+        int main(void) {
+        char *buf, *p;
+        char arg1[MAXLINE], arg2[MAXLINE], content[MAXLINE];
+        int n1 = 0, n2 = 0;
+
+        /* Extract the two arguments */
+        if((buf = getenv("QUERY_STRING")) != NULL) {
+            p = strchr(buf, '&');
+            *p = '\0';
+            // strcpy(arg1, buf);
+            // strcpy(arg2, p + 1);
+            // n1 = atoi(arg1);
+            // n2 = atoi(arg2);
+            sscanf(buf, "first = %d", &n1);
+            sscanf(p + 1, "second = %d", &n2);
+        }
+
+        /* Make the response body */
+        // sprintf(content, "QUERY_STRING = %s", buf);
+        sprintf(content, "Welcome to add.com: ");
+        sprintf(content, "%sTHE Internet addition portal. \r\n<p>", content);
+        sprintf(content, "%sThe answer is : %d + %d = %d\r\n<p>", content, n1, n2, n1 + n2);
+        sprintf(content, "%sThanks for visiting!\r\n", content);
+
+        /* Generate the HTTP response */
+        printf("Connection: close\r\n");
+        printf("Content-length: %d\r\n", (int)strlen(content));
+        printf("Content-type: text/html\r\n\r\n");
+        printf("%s", content);
+        fflush(stdout);
+        
+        exit(0);
+        }
+        ```
