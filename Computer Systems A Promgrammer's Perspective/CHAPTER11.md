@@ -246,7 +246,61 @@
         }
         ```
     - echo 루틴 동작 과정
-        - 10번 줄에서 rio_readlineb 함수가 EOF를 만날 때까지 텍스트 줄을 반복해서 읽고 써줌
+        - 10번 줄에서 rio_readlineb 함수가 EOF를 만날 때까지 텍스트 줄을 반복해서 읽고 써줌<br><br>
+4. echo 클라이언트와 서버 파일을 자동으로 컴파일 시켜주는 Makefile
+    - Makefile이란?
+        - shell에서 컴파일하는 방법 중 하나
+        - makefile이라는 파일에 어떤 파일을 컴파일 하는지, 어떠한 방식으로 컴파일 할지 미리 작성해놓음
+        - make라는 명령어를 통해 makefile이 들어있는 디렉토리에서 파일들의 종속관계를 파악하여 자동으로 컴파일 시켜줌<br><br>
+    - Makefile의 장점
+        - 여러 개의 파일을 컴파일할 경우, 자동화로 인해 시간 절약하고, 프로그램의 종속 구조를 쉽게 파악 가능
+        - 프로그램이 일부 수정되었을 경우, 그 부분에 대해서만 컴파일 하도록 도와주기 때문에 훨씬 효율적<br><br>
+    - Makefile 코드
+        ```C
+        CC = gcc
+        CFLAGS = -O2 -Wall -I .
+        LIB = -lpthread
+
+        all: echo
+
+        csapp.o: csapp.c
+            $(CC) $(CFLAGS) -c csapp.c
+
+        echoclient: echoclient.c csapp.o
+            $(CC) $(CFLAGS) -o echoclient echoclient.c csapp.o $(LIB)
+
+        echoserver: echoserver.c csapp.o
+            $(CC) $(CFLAGS) -o echoserver echoserver.c csapp.o $(LIB)
+
+        clean:
+            rm -f *.o echo *~
+            rm -f *.o echoclient *~
+            rm -f *.o echoserver *~
+        ```
+5. echo 클라이언트와 서버 통신 방법
+    - 서버를 먼저 실행시켜준 후, 클라이언트를 실행시켜 통신<br><br>
+    - 서버 실행 방법
+        - cd echo
+        - make echoserver
+        - ./echoserver 8000<br><br>
+    - 클라이언트 실행 방법
+        - cd echo
+        - make echoclient
+        - ./echoclient localhost 8000
+    - make echoserver와 echoclient는 makefile을 따로 작성하여 사용한 것으로 사용자마다 다름<br><br>
+6. 구현 결과
+    - echo 클라이언트와 서버가 정상적으로 연결되었고, 서로 통신이 가능한 것을 확인했다.
+    - 연결 및 통신 결과를 이미지로 넣으면 좋은데 아직 하는 방법을 몰라서 공부해야할 것 같다...😥<br><br>
+    - 임시로 코드 블록을 통해 구현 결과를 확인해보자.
+        ```
+        - 클라이언트에서 아래 단어 입력
+        hello
+        hi
+
+        - 서버 출력 결과
+        server received 6 bytes
+        server received 3 bytes
+        ```
 
 ## 숙제 문제
 ### CSAPP 11장 11.6c 문제 풀이
