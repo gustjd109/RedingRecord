@@ -637,3 +637,161 @@
         exit(0);
         }
         ```
+
+### 11.11 문제 풀이
+1. 문제
+    - Tiny를 확장해서 HTTP HEAD 메소드를 지원하도록 하라.
+    - TELNET을 웹 클라이언트로 사용해서 작업 결과를 체크하시오.<br><br>
+2. HTTP HEAD 메서드
+    - 문제를 풀기 전에 먼저 HTTP HEAD 메소드에 대해 알아보자.<br><br>
+    - HEAD 메서드란?
+        - 특정 리소스를 GET 메서드로 요청했을 때 돌아올 헤더 부분만를 요청
+            - 이것이 GET 메서드와의 차이
+            - 즉, GET과 동일한 응답을 요구하지만, 서버의 응답의 본문은 리턴되지 않고, HEAD값만 넘겨오기 때문에 GET 메서드보다 속도가 더 빠름
+        - HEAD 메서드에 대한 응답은 본문을 가져선 안되며, 본문이 존재하더라도 무시해야 함
+        - 그러나, 응답으로 받는 헤더에는 Content-Length처럼 본문 콘텐츠를 설명하는 개체 헤더는 포함할 수 있음
+        - 이 때, 개체 헤더는 비어있어야 하는 HEAD의 본문과는 관련이 없고, GET 메서드로 동일한 리소스를 요청했을 때의 본문을 설명하는 것
+        - HEAD 요청의 응답이 캐시했던 이전 GET 메서드의 응답을 유효하지 않다고 표시할 경우, 새로운 GET 요청을 생성하지 않더라도 캐시를 무효화 함<br><br>
+    - HEAD 메서드는 왜 사용하는 것일까?🧐
+        - HEAD 메서드는 종종 캐싱을 사용하는 클라이언트가 가장 최근에 접속한 이후로 문서가 바뀌었는지를 보기 위해 사용
+        - 요청에 쓰인 하이퍼텍스트 링크(hypertext link), 타당성(validity), 접근성(accessibility), 최근 수정사항(recent modification)을 테스트하기 위해 사용<br><br>
+    - 위 내용은 아래 사이트에서 참고하였음
+        - https://developer.mozilla.org/ko/docs/Web/HTTP/Methods/HEAD<br><br>
+3. HEAD 메서드를 사용하기 위해 수정된 tiny.c의 doit() 함수
+    ```C
+    void serve_static(int fd, char *filename, int filesize, char *method);
+    void serve_dynamic(int fd, char *filename, char *cgiargs, char *method);
+
+    ...
+
+    if(!(strcasecmp(method, "GET") == 0 || strcasecmp(method, "HEAD") == 0)) {
+        clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
+        return;
+    }
+
+    ...
+
+    serve_static(fd, filename, sbuf.st_size, method);
+
+    ...
+
+    serve_dynamic(fd, filename, cgiargs, method);
+    ```
+    - serve_static()과 serve_dynamic() 함수 정의에 method 포인터 변수 추가
+    - doit() 함수에서 HEAD 메서드도 받을 수 있도록 추가
+    - serve_static()과 serve_dynamic() 함수 수행 시, method 포인터 변수 인자 추가<br><br>
+4. response header 부분만 보낼 수 있도록 수정된 정적인 파일을 제공해주는 serve_static() 함수
+    ```C
+    void serve_static(int fd, char *filename, int filesize, char *method)
+    {
+    int srcfd;
+    char *srcp, filetype[MAXLINE],buf[MAXBUF];
+
+    /* Send response headers to client */
+    get_filetype(filename, filetype);
+    sprintf(buf, "HTTP/1.1 200 OK\r\n");
+    sprintf(buf, "%sServer : Tiny Web Server\r\n", buf);
+    sprintf(buf, "%sConnection : close\r\n", buf);
+    sprintf(buf, "%sContent-length : %d\r\n", buf, filesize);
+    sprintf(buf, "%sContent-type : %s\r\n\r\n", buf, filetype);
+    Rio_writen(fd, buf, strlen(buf));
+    printf("Response headers : \n");
+    printf("%s", buf);
+
+    if(strcasecmp(method, "HEAD") == 0)
+        return;
+
+    /* Send response body to client */
+    // if(strcasecmp(method, "GET") == 0) {
+    //   srcfd = Open(filename, O_RDONLY, 0);
+    //   srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+    //   Close(srcfd);
+    //   Rio_writen(fd, srcp, filesize);
+    //   Munmap(srcp, filesize);
+    // }
+
+    /* Send response body to client */
+    srcfd = Open(filename, O_RDONLY, 0);
+    srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+    Close(srcfd);
+    Rio_writen(fd, srcp, filesize);
+    Munmap(srcp, filesize);
+    }
+    ```
+    - serve_static() 함수에서 method 포인터 변수를 인자로 받을 수 있도록 추가
+    - response body를 HEAD메서드를 받았을 경우에만 전송할 수 있도록 추가해야하며, 두 가지 방법이 있음 
+        - 인자로 method를 받도록 해주고, method가 HEAD일 경우 리턴
+        - 인자로 method를 받도록 해주고, method가 GET일 때만 response body를 보낼 수 있도록 조건문 추가<br><br>
+5. 요청 메서드를 cgi-bin/head-adder.c에 넘겨주기 위해 환경변수가 추가된 동적인 파일을 제공해주는 serve_dynamic() 함수
+    ```C
+    void serve_dynamic(int fd, char *filename, char *cgiargs, char *method)
+
+    ...
+
+    setenv("QUERY_METHOD", method, 1);
+
+    ...
+    ```
+    - 요청 메서드를 cgi-bin/head-adder.c에 넘겨주기 위해 환경변수 추가<br><br>
+6. HEAD 메서드일 경우에만 본문를 같이 출력할 수 있도록 수정된 head-adder 함수
+    ```C
+    char *buf, *p, *method;
+
+    ...
+
+    method = getenv("REQUEST_METHOD");
+
+    ...
+
+    if (strcasecmp(method, "HEAD") != 0)
+    printf("%s", content);
+  
+    // if (strcasecmp(method, "GET") == 0) {
+    //   printf("%s", content);
+    // }
+
+    ...
+    ```
+    - HEAD 메서드를 사용하기 위해 포인터 변수 추가
+    - 환경 변수로 넣어둔 요청 메서드를 확인하기 위해 추가
+    - 응답시 HEAD 메서드가 아닐 경우에만 본문을 같이 출력할 수 있도록 추가해야하며, 두 가지 방법이 있음
+        - HEAD 메서드가 아닐 경우만 응답시 본문을 같이 출력
+        - 메서드가 GET일 경우만 응답시 본문을 같이 출력<br><br>
+7. 결과
+    - 해당 결과는 정적일 때 테스트한 결과이다.<br><br>
+    - GET 메서드 사용
+        - 클라이언트 요청
+            ```C
+            GET / HTTP/1.1
+            ```
+        - 클라이언트 출력
+            ```C
+            HTTP/1.1 200 OK
+            Server : Tiny Web Server
+            Connection : close
+            Content-length : 165
+            Content-type : text/html
+
+            <html>
+                <head><title>Tiny Web Sever</title></head>
+                <body>
+                    <h2>Dave O'Hallaron</h2>
+                    <img align="middle" src="godzilla.gif">
+                </body>
+            </html>Connection closed by foreign host.
+            ```
+    - HEAD 메서드 사용
+        - 클라이언트 요청
+            ```C
+            HEAD / HTTP/1.1
+            ```
+        - 클라이언트 출력
+            ```C
+            HTTP/1.1 200 OK
+            Server : Tiny Web Server
+            Connection : close
+            Content-length : 165
+            Content-type : text/html
+
+            Connection closed by foreign host.
+            ```
