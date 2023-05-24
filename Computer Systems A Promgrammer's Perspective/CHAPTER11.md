@@ -482,79 +482,160 @@
             - 성공하면 0을 반환하고, 실패하면 -1을 반환하며, errno가 설정(보통 EINVAL이 설정)
             - EBADF : fd가 유효한 파일 디스크립터가 아님
             - EINVAL : start나 length 혹은 offset이 적당하지 않음(즉, 너무 크거나 PAGESIZE 경계로 정렬되어 있지 않음)<br><br>
-4. rio_readn()과 rio_writen() 함수
-    - 문제를 풀면서 rio_readn()과 rio_writen() 함수가 어떤 기능을 수행하는지 궁금해져서 학습했다.
-    - rio_readn()과 rio_writen() 함수 소스코드는 csapp.c에 정의되어 있다.
-    - 하지만, 아래 사이트(펜실베이니아 주립대학교에서 제공하는 사이트인듯)의 코드에 좀 더 자세하게 주석처리가 되어있어서 참고하여 학습했고, 해당 내용은 다음과 같다.
+4. RIO Package
+    - 문제를 풀면서 rio_readn()과 rio_writen() 함수가 어떤 기능을 수행하는지 궁금해져서 RIO Package에 대해 학습했다.
+    - RIO Package와 관련된 함수 소스코드는 csapp.c에 정의되어 있으며, 10장 RIO 패키지를 이용한 안정적인 읽기와 쓰기에 정리되어 있다.
+    - 아래 사이트(펜실베이니아 주립대학교에서 제공하는 사이트인듯)의 코드에 좀 더 자세하게 주석처리가 되어있어서 참고하여 학습했다.
         - https://www.cse.psu.edu/~deh25/cmpsc311/Lectures/System-Level-I_O.html<br><br>
-    - rio_readn() 함수
-        - rio_readn() 함수 소스코드
+    - RIO(Robust I/O) Package란?
+        - 이름이 Robust인 이유는 이 I/O 장치의 특성 때문이며, 입출력 장치를 견고하게 만들어준다는 의미를 지니고 있음
+        - 짧은 카운트가 발생할 수 있는 네트워크 프로그램 같은 응용에서 편리하고, 안정적이고 효율적인 I/O룰 재공
+        - 두 가지 서로 다른 종류의 함수를 제공<br><br>
+    - RIO 버퍼 없는 입력 및 출력 함수
+        - 메모리와 파일 간에 버퍼링 없이 직접 데이터 전송 가능
+        - 2진 데이터를 읽고 쓸 때 유용<br><br>
+        - RIO 버퍼 없는 입력 및 출력 함수 정의
             ```C
-            ssize_t rio_readn(int fd, void *usrbuf, size_t n)
-            {
-            size_t nleft = n;        /* 0 <= nleft == n */
-            char *bufp = usrbuf;
+            #include "csapp.h"
 
-            while (nleft > 0) {      /* loop invariant: 0 <= nleft <= n */
-                ssize_t rc = read(fd, bufp, nleft);
-                if (rc < 0) {          /* read() error */
-                if (errno == EINTR)  /* interrupted by a signal */
-                    continue;          /* no data was read, try again */
-                else
-                    return -1;         /* errno set by read(), give up */
-                    /* ??? It may be that some data was read successfully
-                    * on a previous iteration.  Is it correct to give up
-                    * entirely?  In some cases, yes, but always?
-                    */
-                }
-                if (rc == 0)           /* EOF */
-                break;
-                bufp += rc;            /* read() success, 0 < rc <= nleft */
-                nleft -= rc;           /* 0 <= new nleft < old nleft <= n */
-            }
-
-            return (n - nleft);      /* return >= 0 */
-            }
+            asize_t rio_readn(int fd, void *usrbuf, size_t n);
+            asize_t rio_writen(int fd, void *usrbuf, size_t n);
+            Returns : number of bytes transferred if OK, 0 on EOF(rio_readn only), -1 on error
             ```
-        - rio_readn() 함수 설명
-            - 견고하게 n 바이트를 읽는 함수(버퍼링되지 않음)
-            - 바이트 수를 반환하거나 EOF의 경우 0, 오류의 경우 -1을 반환
+        - rio_readn() 함수
+            - rio_readn() 함수 소스코드
+                ```C
+                ssize_t rio_readn(int fd, void *usrbuf, size_t n) 
+                {
+                    size_t nleft = n;
+                    ssize_t nread;
+                    char *bufp = usrbuf;
+
+                    while (nleft > 0) {
+                    if ((nread = read(fd, bufp, nleft)) < 0) {
+                        if (errno == EINTR) /* Interrupted by sig handler return */
+                        nread = 0;      /* and call read() again */
+                        else
+                        return -1;      /* errno set by read() */ 
+                    } 
+                    else if (nread == 0)
+                        break;              /* EOF */
+                    nleft -= nread;
+                    bufp += nread;
+                    }
+                    return (n - nleft);         /* Return >= 0 */
+                }
+                ```
+            - 식별자 fd의 현재 파일 위치에서 메모리 위치 usrbuf로 최대 n 바이트를 전송
+            - 바이트 수를 반환하거나 EOF의 경우 0(rio_readn 함수에만 해당), 오류의 경우 -1을 반환
             - n 바이트 미만을 사용할 수 있으면, 정상적으로 반환
-            - n 바이트가 요청되면(n = 0) rio_ 함수는 아무 작업도 수행하지 않음
-            - 표준 함수 read() 및 write()는 다른 인수의 유효성을 확인한 다음 다른 작업을 수행하지 않음<br><br>
-    - rio_writen() 함수
-        - rio_writen() 함수 소스코드
-            ```C
-            ssize_t rio_writen(int fd, void *usrbuf, size_t n)
-            {
-            size_t nleft = n;        /* 0 <= nleft == n */
-            char *bufp = usrbuf;
+            - n 바이트가 요청되면(n = 0) 함수는 아무 작업도 수행하지 않음<br><br>
+        - rio_writen() 함수
+            - rio_writen() 함수 소스코드
+                ```C
+                ssize_t rio_writen(int fd, void *usrbuf, size_t n) 
+                {
+                    size_t nleft = n;
+                    ssize_t nwritten;
+                    char *bufp = usrbuf;
 
-            while (nleft > 0) {      /* loop invariant: 0 <= nleft <= n */
-                ssize_t rc = write(fd, bufp, nleft);
-                if (rc < 0) {          /* write() error */
-                if (errno == EINTR)  /* interrupted by a signal */
-                    continue;          /* no data was written, try again */
-                else
-                    return -1;         /* errno set by write(), give up */
-                    /* ??? It may be that some data was written successfully
-                    * on a previous iteration.  Is it correct to give up
-                    * entirely?  In some cases, yes, but always?
-                    */
+                    while (nleft > 0) {
+                    if ((nwritten = write(fd, bufp, nleft)) <= 0) {
+                        if (errno == EINTR)  /* Interrupted by sig handler return */
+                        nwritten = 0;    /* and call write() again */
+                        else
+                        return -1;       /* errno set by write() */
+                    }
+                    nleft -= nwritten;
+                    bufp += nwritten;
+                    }
+                    return n;
                 }
-                if (rc == 0)           /* nothing written, but not an error */
-                continue;            /* try again */
-                bufp += rc;            /* write() success, 0 < rc <= nleft */
-                nleft -= rc;           /* 0 <= new nleft < old nleft <= n */
-            }
-
-            return n;
-            }
-            ```
-        - rio_writen() 함수 설명
-            - 견고하게 n 바이트를 씁는 함수(버퍼링되지 않음)
+                ```
+            - usrbuf에서 식별자 fd로 n 바이트를 전송
             - 바이트 수를 반환하거나 오류 시 -1을 반환
-            - n 바이트 미만이 기록되면 오류를 반환
+            - n 바이트 미만이 기록되면 오류를 반환<br><br>
+    - RIO 버퍼를 통한 입력 함수
+        - 텍스트 라인들과 내용이 버퍼에 캐시되어 있는 파일의 2진 데이터를 효율적으로 읽도록 해줌
+        - 버퍼를 사용하기 때문에 쓰레드-안전(thread-safe)하며, 같은 식별자에서 임의로 중첩될 수 있음
+        - 텍스트 라인 전체를 내부 읽기 버퍼에서 복사하는 rio_readlineb() 함수와 텍스트 라인과 2진 데이터 모두를 읽을 수 있는 rio_readnb() 함수가 있음
+            - 파일 -> 읽기 버퍼 -> (읽기 버퍼를 읽고 그 데이터를)메모리 버퍼로 복사<br><br>
+        - RIO 버퍼를 통한 입력 함수 정의
+            ```C
+            #include "csapp.h"
+
+            void rio_readinitb(rio_t *rp, int fd);
+                                                                Returns : nothing
+            asize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen);
+            asize_t rio_readnb(rio_t *rp, void *usrbuf, size_t n);
+            Returns : number of bytes read if OK, 0 on EOF, -1 on error
+            ```
+        - rio_readinitb() 함수
+            - rio_readinitb() 함수 소스코드
+                ```C
+                void rio_readinitb(rio_t *rp, int fd) 
+                {
+                    rp->rio_fd = fd;  
+                    rp->rio_cnt = 0;  
+                    rp->rio_bufptr = rp->rio_buf;
+                }
+                ```
+            - open한 식별자마자 한 번 호출
+            - 읽고 싶은 파일 식별자 fd와 읽기 버퍼 rp를 연결<br><br>
+        - rio_readnb() 함수
+            - rio_readnb() 함수 소스코드
+                ```C
+                ssize_t rio_readnb(rio_t *rp, void *usrbuf, size_t n) 
+                {
+                    size_t nleft = n;
+                    ssize_t nread;
+                    char *bufp = usrbuf;
+                    
+                    while (nleft > 0) {
+                    if ((nread = rio_read(rp, bufp, nleft)) < 0) 
+                            return -1;          /* errno set by read() */ 
+                    else if (nread == 0)
+                        break;              /* EOF */
+                    nleft -= nread;
+                    bufp += nread;
+                    }
+                    return (n - nleft);         /* return >= 0 */
+                }
+                ```
+            - 최대 n 바이트를 파일 rp로부터 메모리 위치 usrbuf로 읽음
+            - 텍스트 라인과 2진 데이터 모두를 읽을 수 있고, n 바이트씩 가져옴
+            - 바이트 수를 반환하거나 EOF의 경우 0, 오류의 경우 -1을 반환<br><br>
+        - rio_readlineb() 함수
+            - rio_readlineb() 함수 소스코드
+                ```C
+                ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen) 
+                {
+                    int n, rc;
+                    char c, *bufp = usrbuf;
+
+                    for (n = 1; n < maxlen; n++) { 
+                        if ((rc = rio_read(rp, &c, 1)) == 1) {
+                        *bufp++ = c;
+                        if (c == '\n') {
+                                n++;
+                            break;
+                            }
+                    } else if (rc == 0) {
+                        if (n == 1)
+                        return 0; /* EOF, no data read */
+                        else
+                        break;    /* EOF, some data was read */
+                    } else
+                        return -1;	  /* Error */
+                    }
+                    *bufp = 0;
+                    return n-1;
+                }
+                ```
+            - 텍스트 라인 전체를 내부 읽기 버퍼 rp에서 읽은 후, 메모리 버퍼 usrbuf으로 복사하고, 0(NULL)로 텍스트 라인을 종료
+            - 최대 maxlen - 1개의 바이트를 읽으며, 종료용 0(NULL) 문자를 위한 공간을 남겨둠
+            - maxlen - 1 바이트를 넘는 텍스트 라인들은 잘라내서 NULL 문자로 종료
+            - 바이트 수를 반환하거나 EOF의 경우 0, 오류의 경우 -1을 반환
 
 ### 11.10 문제 풀이
 1. 문제 A
